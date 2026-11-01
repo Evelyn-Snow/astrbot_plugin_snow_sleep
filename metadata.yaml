@@ -2,7 +2,7 @@ name: astrbot_plugin_snow_sleep
 display_name: 机器人作息
 desc: 让机器人在设定时间休息（默认 00:00-07:00）：不回复、不反应、不被动读群消息
 help: 休息时间内所有消息不会被处理；命令仍然可用；网页测试台默认豁免
-version: v0.2.0
+version: v0.3.0
 repo: https://github.com/Evelyn-Snow/astrbot_plugin_snow_sleep
 author: Evelyn-Snow
 support_platforms:

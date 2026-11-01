@@ -14,13 +14,15 @@ from __future__ import annotations
 
 import asyncio
 import datetime
+import json
 import random
 import time
+from pathlib import Path
 
 from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent, MessageChain, filter
 from astrbot.api.message_components import Plain
-from astrbot.api.star import Context, Star
+from astrbot.api.star import Context, Star, StarTools
 from astrbot.core.config.astrbot_config import AstrBotConfig
 
 from .library import (
@@ -28,9 +30,12 @@ from .library import (
     in_sleep_window,
     is_command_text,
     is_recently_active,
+    pick_plan,
+    sleep_start_from_plan,
 )
 
 NAME = "astrbot_plugin_snow_sleep"
+VLF_PLUGIN = "astrbot_plugin_virtual_life"
 _GUARD_PRIORITY = (1 << 31) - 2  # 仅次于 GCP 的命令标记器，先于一切消息处理
 _GOODNIGHT_FALLBACK = (
     "我先去睡啦，晚安，好梦～",
@@ -48,16 +53,67 @@ class SnowSleep(Star):
         # umo -> (最后消息时间, 发送者昵称)：私聊活跃度，供临睡道别判断
         self._last_private: dict[str, tuple[float, str]] = {}
         self._goodnight_sent: dict[str, str] = {}  # umo -> 日期（每晚一次）
+        # 虚拟人生联动：(读取时间, 当日虚拟休息点或 None)
+        self._vlife_cache: tuple[float, str | None] = (0.0, None)
+        self._vlife_logged = ""
 
     # ---------------- 配置 ----------------
     def _enabled(self) -> bool:
         return bool(self.conf.get("enabled", True))
 
+    def _vl_adapt(self) -> bool:
+        return bool(self.conf.get("virtual_life_adapt", True))
+
+    def _effective_sleep_start(self) -> str:
+        """当晚实际休息点：配置值为基础；检测到虚拟人生且今天日程有睡眠槽时采用之。"""
+        start = str(self.conf.get("sleep_start") or "00:00")
+        if not self._vl_adapt():
+            return start
+        now = time.time()
+        if now - self._vlife_cache[0] < 300:
+            return self._vlife_cache[1] or start
+        resolved = None
+        try:
+            if self.context.get_registered_star(VLF_PLUGIN):
+                data_dir = Path(
+                    str(StarTools.get_data_dir(VLF_PLUGIN))
+                ) / "plans.json"
+                with open(data_dir, encoding="utf-8") as f:
+                    data = json.load(f)
+                plan = pick_plan(
+                    data, datetime.date.today().isoformat(), self._default_persona_name()
+                )
+                resolved = sleep_start_from_plan(plan or {}) if plan else None
+        except FileNotFoundError:
+            resolved = None
+        except Exception as exc:
+            logger.debug(f"[{NAME}] 虚拟作息读取失败：{exc}")
+            resolved = None
+        self._vlife_cache = (now, resolved)
+        if resolved and resolved != start and self._vlife_logged != resolved:
+            self._vlife_logged = resolved
+            logger.info(
+                f"[{NAME}] 虚拟作息适配：今日虚拟日程 {resolved} 休息"
+                f"（配置值 {start}，晚安道别与守卫随之调整）"
+            )
+        return resolved or start
+
+    def _default_persona_name(self) -> str:
+        try:
+            cfg = self.context.get_config()
+            return str(
+                (cfg.get("provider_settings") or {}).get("default_personality") or ""
+            )
+        except Exception:
+            return ""
+
     def _in_window(self, now: datetime.datetime | None = None) -> bool:
         now = now or datetime.datetime.now()
-        return in_sleep_window(now.hour * 60 + now.minute,
-                               str(self.conf.get("sleep_start") or "00:00"),
-                               str(self.conf.get("wake_time") or "07:00"))
+        return in_sleep_window(
+            now.hour * 60 + now.minute,
+            self._effective_sleep_start(),
+            str(self.conf.get("wake_time") or "07:00"),
+        )
 
     def _allow_commands(self) -> bool:
         return bool(self.conf.get("allow_commands", True))
@@ -133,7 +189,7 @@ class SnowSleep(Star):
         window = int(self.conf.get("goodnight_window_minutes", 5))
         if not in_goodnight_window(
             now.hour * 60 + now.minute,
-            str(self.conf.get("sleep_start") or "00:00"),
+            self._effective_sleep_start(),
             window,
         ):
             return

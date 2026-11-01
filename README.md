@@ -17,3 +17,12 @@
 - 「正在聊天」= 对方最近 N 分钟（默认 5）发过私聊消息
 - 晚安语由模型按人设现写，失败时退回固定文案；每位对象每晚最多一次
 - 配置：`goodnight_enabled` / `goodnight_window_minutes` / `goodnight_active_minutes`
+
+## 跟随虚拟人生日程作息（v0.3.0）
+
+检测到插件市场「虚拟人生」（astrbot_plugin_virtual_life）且开启 `virtual_life_adapt` 时：
+
+- 当晚休息点自动改用虚拟日程里睡眠时段的开始时间——日程早睡她就早睡、日程熬夜她就熬夜；
+- 临睡晚安道别的窗口随之跟随动态休息点；
+- 读不到日程（插件未装/今天没生成/人格不匹配）时回退上面的固定作息，行为与旧版完全一致；
+- 默认人格由 AstrBot 配置的 `default_personality` 决定，与虚拟人生的人格键匹配。

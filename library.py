@@ -59,3 +59,62 @@ def is_recently_active(last_ts: float | None, now_ts: float, active_minutes: int
     if not last_ts:
         return False
     return (now_ts - last_ts) <= max(1, int(active_minutes)) * 60
+
+
+# ---------------- 虚拟人生（astrbot_plugin_virtual_life）联动 ----------------
+
+_HHMM_LEN = re.compile(r"^\d{1,2}:\d{2}$")
+
+
+def _hhmm_minutes(raw: str) -> int:
+    hour, minute = str(raw or "0:0").split(":")[:2]
+    value = int(hour) * 60 + int(minute)
+    return max(0, min(1440, value))
+
+
+def pick_plan(plans_data: dict, today: str, persona_id: str = "") -> dict | None:
+    """从虚拟人生 plans.json 内容中选出今天的日程。
+
+    plans_data 为该文件反序列化后的 dict（plans 键下是 "{日期}::{persona}" 条目）。
+    指定 persona_id 时优先匹配；否则仅当今天恰好只有一个日程时采用。
+    """
+    plans = plans_data.get("plans") if isinstance(plans_data, dict) else None
+    if not isinstance(plans, dict):
+        return None
+    matching = [
+        value
+        for key, value in plans.items()
+        if isinstance(value, dict) and str(key).startswith(f"{today}::")
+    ]
+    if not matching:
+        return None
+    if persona_id:
+        for plan in matching:
+            if str(plan.get("persona_id", "")) == persona_id:
+                return plan
+    return matching[0] if len(matching) == 1 else None
+
+
+def sleep_start_from_plan(plan: dict, persona_id: str = "") -> str | None:
+    """从日程条目里找睡眠时段的开始时间（HH:MM），取最长的睡眠槽。
+
+    与虚拟人生自带的 sleep exception 选择逻辑一致；找不到返回 None。
+    """
+    if not isinstance(plan, dict):
+        return None
+    if persona_id and str(plan.get("persona_id", "")) != persona_id:
+        return None
+    timeline = plan.get("timeline")
+    if not isinstance(timeline, list):
+        return None
+    best, best_len = None, -1
+    for item in timeline:
+        if not isinstance(item, dict) or item.get("state") != "sleep":
+            continue
+        start, end = str(item.get("start") or ""), str(item.get("end") or "")
+        if not _HHMM_LEN.match(start) or not _HHMM_LEN.match(end):
+            continue
+        length = _hhmm_minutes(end) - _hhmm_minutes(start)
+        if length > best_len:
+            best, best_len = start, length
+    return best

@@ -50,5 +50,11 @@
     "description": "对方多少分钟内聊过天算「正在聊天」",
     "type": "int",
     "default": 5
+  },
+  "virtual_life_adapt": {
+    "description": "跟随虚拟人生日程作息",
+    "type": "bool",
+    "default": true,
+    "hint": "检测到虚拟人生插件（astrbot_plugin_virtual_life）时，当晚休息点改用其今日日程的睡眠时段开始时间（日程早睡她就早睡、熬夜她就熬夜）；读不到时回退上面的固定作息"
   }
 }
