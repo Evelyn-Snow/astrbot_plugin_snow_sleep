@@ -1,0 +1,38 @@
+{
+  "enabled": {
+    "description": "启用作息",
+    "type": "bool",
+    "default": true,
+    "hint": "关闭后机器人恢复全天候在线"
+  },
+  "sleep_start": {
+    "description": "休息开始时间",
+    "type": "string",
+    "default": "00:00",
+    "hint": "HH:MM，此时间之后进入休息"
+  },
+  "wake_time": {
+    "description": "苏醒时间",
+    "type": "string",
+    "default": "07:00",
+    "hint": "HH:MM，此时间之后恢复在线"
+  },
+  "allow_commands": {
+    "description": "休息时间放行命令",
+    "type": "bool",
+    "default": true,
+    "hint": "/ 开头的命令消息不受作息影响（管理功能仍可用）"
+  },
+  "include_webchat": {
+    "description": "网页测试台也休息",
+    "type": "bool",
+    "default": false,
+    "hint": "默认豁免网页测试台，方便所有者夜间调试；开启后网页端同样休息"
+  },
+  "suppress_memory_capture": {
+    "description": "休息时暂停被动记忆捕获",
+    "type": "bool",
+    "default": true,
+    "hint": "休息期间 LivingMemory 不记录群消息；苏醒后自动恢复"
+  }
+}
