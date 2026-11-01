@@ -37,3 +37,25 @@ def in_sleep_window(now_minutes: int, start: str, end: str) -> bool:
 def is_command_text(text: str) -> bool:
     """是否为命令消息（命令在休息时间仍然放行）。"""
     return str(text or "").strip().startswith(("/", "！"))
+
+
+def minutes_until(start: str, now_minutes: int) -> int:
+    """距下一次到达 start（HH:MM）还有多少分钟（0..1439，支持跨午夜）。"""
+    start_m = to_minutes(parse_hhmm(start, (0, 0)))
+    now_m = max(0, min(1440, int(now_minutes)))
+    return (start_m - now_m) % 1440
+
+
+def in_goodnight_window(
+    now_minutes: int, sleep_start: str, window_minutes: int
+) -> bool:
+    """临睡道别窗口：距休息开始不足 window_minutes 分钟（且尚未到达）。"""
+    until = minutes_until(sleep_start, now_minutes)
+    return 0 <= until < max(1, int(window_minutes))
+
+
+def is_recently_active(last_ts: float | None, now_ts: float, active_minutes: int) -> bool:
+    """对方是否仍在聊天（最近 active_minutes 分钟内有过私聊消息）。"""
+    if not last_ts:
+        return False
+    return (now_ts - last_ts) <= max(1, int(active_minutes)) * 60

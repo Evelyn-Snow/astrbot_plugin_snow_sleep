@@ -34,5 +34,21 @@
     "type": "bool",
     "default": true,
     "hint": "休息期间 LivingMemory 不记录群消息；苏醒后自动恢复"
+  },
+  "goodnight_enabled": {
+    "description": "临睡晚安道别",
+    "type": "bool",
+    "default": true,
+    "hint": "休息开始前几分钟内还在私聊的对象，会收到一句晚安道别（仅私聊）"
+  },
+  "goodnight_window_minutes": {
+    "description": "道别窗口（休息前几分钟）",
+    "type": "int",
+    "default": 5
+  },
+  "goodnight_active_minutes": {
+    "description": "对方多少分钟内聊过天算「正在聊天」",
+    "type": "int",
+    "default": 5
   }
 }
