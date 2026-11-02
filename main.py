@@ -101,8 +101,12 @@ class SnowSleep(Star):
     def _default_persona_name(self) -> str:
         try:
             cfg = self.context.get_config()
+            agent = (cfg.get("agent_runner") or {}).get("config") or {}
+            # 人格 id 实际存在 agent_runner.config.persona（default_personality 仅运行时回填）
             return str(
-                (cfg.get("provider_settings") or {}).get("default_personality") or ""
+                (agent.get("persona") or {}).get("persona_id")
+                or (cfg.get("provider_settings") or {}).get("default_personality")
+                or ""
             )
         except Exception:
             return ""
