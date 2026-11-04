@@ -49,6 +49,7 @@ class SnowSleep(Star):
         super().__init__(context)
         self.conf = config
         self._sleep_applied = None  # None=未知, True/False=已同步的状态
+        self._lm_original: bool | None = None  # LivingMemory 原本的捕获开关
         self._sync_task: asyncio.Task | None = None
         # umo -> (最后消息时间, 发送者昵称)：私聊活跃度，供临睡道别判断
         self._last_private: dict[str, tuple[float, str]] = {}
@@ -126,15 +127,29 @@ class SnowSleep(Star):
         return not bool(self.conf.get("include_webchat", False))
 
     # ---------------- LivingMemory 联动 ----------------
-    def _set_lm_capture(self, value: bool) -> bool:
-        """翻转 LivingMemory 的全群被动捕获（内存态，白天配置不受影响）。"""
+    def _lm_section(self) -> dict | None:
         try:
             meta = self.context.get_registered_star("astrbot_plugin_livingmemory")
             plugin = getattr(meta, "star_cls", None) if meta else None
             cm = getattr(plugin, "config_manager", None)
             raw = getattr(cm, "_config", None)
             section = raw.get("session_manager") if isinstance(raw, dict) else None
-            if not isinstance(section, dict):
+            return section if isinstance(section, dict) else None
+        except Exception as exc:
+            logger.warning(f"[{NAME}] 读取 LivingMemory 配置失败: {exc}")
+            return None
+
+    def _get_lm_capture(self) -> bool | None:
+        section = self._lm_section()
+        if section is None or "enable_full_group_capture" not in section:
+            return None
+        return bool(section.get("enable_full_group_capture"))
+
+    def _set_lm_capture(self, value: bool) -> bool:
+        """翻转 LivingMemory 的全群被动捕获（内存态，白天配置不受影响）。"""
+        try:
+            section = self._lm_section()
+            if section is None:
                 return False
             section["enable_full_group_capture"] = value
             return True
@@ -147,11 +162,18 @@ class SnowSleep(Star):
             return
         if self._sleep_applied == sleeping:
             return
-        ok = self._set_lm_capture(not sleeping)
+        ok = True
+        if sleeping:
+            if self._lm_original is None:
+                self._lm_original = self._get_lm_capture()
+            ok = self._set_lm_capture(False)
+        elif self._lm_original is not None:
+            ok = self._set_lm_capture(self._lm_original)
+            self._lm_original = None
         self._sleep_applied = sleeping
         logger.info(
             f"[{NAME}] {'进入休息' if sleeping else '苏醒'}"
-            f"（LivingMemory 被动捕获{'已暂停' if sleeping else '已恢复'}{'' if ok else '，同步失败'}）"
+            f"（LivingMemory 被动捕获{'已暂停' if sleeping else '已恢复原值'}{'' if ok else '，同步失败'}）"
         )
 
     async def _sync_loop(self) -> None:
@@ -254,8 +276,10 @@ class SnowSleep(Star):
             self._sync_task.cancel()
             await asyncio.gather(self._sync_task, return_exceptions=True)
             self._sync_task = None
-        # 卸载/停用时恢复捕获，避免白天被动记忆失效。
-        self._set_lm_capture(True)
+        # 卸载/停用时恢复原本的捕获状态，不要硬编码成 True。
+        if self._lm_original is not None:
+            self._set_lm_capture(self._lm_original)
+        self._lm_original = None
         self._sleep_applied = None
 
     # ---------------- 事件守卫 ----------------
